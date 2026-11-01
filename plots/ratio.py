@@ -1,188 +1,102 @@
-"""Модель, точное покрытие, границы и планирование нормального эксперимента."""
+"""Оформление и вывод графиков по готовым данным из первого ноутбука."""
+
+from plots.style import save, setup
 
 import matplotlib.pyplot as plt
+from matplotlib.ticker import MaxNLocator, ScalarFormatter
 import numpy as np
-from scipy import stats
-
-from plots.style import setup, save, size_axis, coverage_errorbar
-from utils.intervals import ratio_expected_bounds
+from IPython.display import Image, display
 
 
-def ratio_theory_plots(directory="images/variance_ratio"):
+def _show(fig, directory, name):
+    path = save(fig, directory, name)
+    display(Image(filename=str(path)))
+
+
+def plot_fisher_quantiles(distribution, q_low, q_high, df, alpha, directory):
+    """Создаёт сетки для рисунка и отмечает вычисленные в ноутбуке квантили."""
     setup()
-    paths = {}
-    fig, axes = plt.subplots(1, 2, figsize=(12, 4))
-    x = np.linspace(-5, 5, 600)
-    for variance, label in [(2, "X: дисперсия 2"), (1, "Y: дисперсия 1")]:
-        axes[0].plot(x, stats.norm.pdf(x, scale=np.sqrt(variance)), label=label)
-    axes[0].set(xlabel="Наблюдение", ylabel="Плотность", title="Нормальные модели, μ₁ = μ₂ = 0")
-    axes[0].legend()
-    x = np.linspace(0.01, 4, 1000)
-    for n in [5, 15, 101]:
-        axes[1].plot(x, stats.f.pdf(x, n - 1, n - 1), label=f"n = m = {n}")
-    axes[1].axvline(1, color="black", ls="--")
-    axes[1].set(xlabel="F = (S²x/S²y)/τ", ylabel="Плотность", title="Распределение точного пивота")
-    axes[1].legend()
-    paths["model"] = save(fig, directory, "01_model_and_pivot")
+    right_edge = distribution.ppf(1 - alpha / 10)
+    grid = np.linspace(0.001, right_edge, 1200)
+    density = distribution.pdf(grid)
+    central_grid = np.linspace(q_low, q_high, 500)
+    central_density = distribution.pdf(central_grid)
 
-    fig, axes = plt.subplots(1, 2, figsize=(12, 4))
-    for alpha in [0.1, 0.05, 0.01]:
-        sizes = np.geomspace(4, 2000, 100).astype(int)
-        lengths = [ratio_expected_bounds(n, n, alpha=alpha)[2] for n in sizes]
-        axes[0].loglog(sizes, lengths, label=f"Уровень {1-alpha:.0%}")
-        grid = np.linspace(0.1, 8, 1000)
-        lo, hi = stats.f.ppf([alpha / 2, 1 - alpha / 2], 9, 9)
-        axes[1].fill_between(grid, stats.f.pdf(grid, 9, 9), where=(grid >= lo) & (grid <= hi),
-                             alpha=0.15, label=f"{1-alpha:.0%}: [{lo:.2f}; {hi:.2f}]")
-    axes[0].set(xlabel="n = m", ylabel="E[U − L]", title="Цена повышения доверительного уровня")
-    axes[1].plot(grid, stats.f.pdf(grid, 9, 9), color="black")
-    axes[1].set(xlabel="Значение пивота", ylabel="Плотность", title="Центральная область F(9, 9)")
-    for ax in axes:
-        ax.legend()
-    paths["confidence"] = save(fig, directory, "09_confidence_levels")
-
-    fig, axes = plt.subplots(1, 2, figsize=(12, 4.5))
-    budget = 200
-    ns = np.arange(4, budget - 3)
-    lengths = np.array([ratio_expected_bounds(n, budget - n)[2] for n in ns])
-    axes[0].plot(ns, lengths)
-    optimum = ns[np.argmin(lengths)]
-    axes[0].axvline(optimum, color="tab:red", ls="--", label=f"Минимум при n = {optimum}")
-    axes[0].set(xlabel="n, при m = 200 − n", ylabel="Ожидаемая длина", ylim=(0, 15),
-                title="Фиксированный бюджет наблюдений")
-    axes[0].legend()
-    grid = np.unique(np.geomspace(4, 300, 30).astype(int))
-    values = np.array([[ratio_expected_bounds(n, m)[2] for n in grid] for m in grid])
-    heat = axes[1].pcolormesh(grid, grid, np.log10(values), shading="auto", cmap="viridis_r")
-    axes[1].set(xscale="log", yscale="log", xlabel="n", ylabel="m",
-                title="Длина интервала зависит от обеих выборок")
-    fig.colorbar(heat, ax=axes[1], label="log₁₀ E[U − L]")
-    paths["allocation"] = save(fig, directory, "11_sample_allocation")
-    return paths
+    fig, ax = plt.subplots(figsize=(10, 4.5))
+    ax.plot(grid, density, color="tab:blue", label=f"Плотность F({df[0]}, {df[1]})")
+    ax.fill_between(central_grid, central_density, alpha=0.25, color="tab:blue",
+                    label=f"Центральная область: вероятность {1 - alpha:g}")
+    ax.axvline(q_low, color="tab:orange", linestyle="--",
+               label=f"q({alpha / 2:g}) = {q_low:.3f}")
+    ax.axvline(q_high, color="tab:red", linestyle="--",
+               label=f"q({1 - alpha / 2:g}) = {q_high:.3f}")
+    ax.set(xlabel="Значение R / τ", ylabel="Плотность",
+           title="Область, из которой получен доверительный интервал", xlim=(0, grid[-1]))
+    ax.legend()
+    _show(fig, directory, "task_1_fisher_quantiles")
 
 
-def ratio_result_plots(experiment, unbalanced, directory="images/variance_ratio"):
+def plot_coverage(sizes, coverage, level, truth, directory):
+    """Рисует готовые доли покрытия и теоретический доверительный уровень."""
     setup()
-    paths = {}
-    table, results = experiment["table"], experiment["results"]
-    alpha, truth = experiment["alpha"], experiment["truth"]
+    half_range = max(0.005, 1.2 * max(abs(value - level) for value in coverage))
+    fig, ax = plt.subplots(figsize=(10, 4.5))
+    ax.axhline(level, color="black", linestyle="--", label=f"Теоретическая доля: {level:g}")
+    ax.plot(sizes, coverage, "o-", color="tab:blue", label="Доля в эксперименте")
+    ax.set(xscale="log", xlabel="Объём каждой выборки n = m",
+           ylabel=f"Доля интервалов, содержащих τ = {truth:g}",
+           title="Зависимость доли «хороших» интервалов от объёма выборок",
+           ylim=(max(0, level - half_range), min(1, level + half_range)))
+    ax.set_xticks(sizes, labels=sizes, rotation=35)
+    ax.legend(loc="best")
+    _show(fig, directory, "task_1_coverage")
 
-    fig, axes = plt.subplots(1, 2, figsize=(12, 4.5))
-    coverage_errorbar(axes[0], table, "Покрытие ± 95% интервал Уилсона", "tab:blue")
-    axes[0].axhline(1-alpha, color="black", ls="--", label="Точное покрытие 0.95")
-    size_axis(axes[0], "Доля интервалов, содержащих τ")
-    axes[0].set_title("Покрытие не должно расти к единице")
-    axes[0].legend(fontsize=9)
-    for col, label in [("below", "U < τ"), ("above", "L > τ")]:
-        axes[1].plot(table.n, table[col], "o-", label=label)
-    axes[1].axhline(alpha/2, color="black", ls="--", label="α/2 = 0.025")
-    size_axis(axes[1], "Доля промахов с каждой стороны")
-    axes[1].legend()
-    paths["coverage"] = save(fig, directory, "02_coverage_and_tails")
 
-    fig, axes = plt.subplots(1, 3, figsize=(14, 5))
-    for ax, n in zip(axes, [5, 30, 1000]):
-        r = results[n]
-        good = (r["low"][:70] <= truth) & (r["high"][:70] >= truth)
-        for i in range(70):
-            color = "tab:blue" if good[i] else "tab:red"
-            ax.plot([r["low"][i], r["high"][i]], [i, i], color=color, alpha=0.7, lw=1.1)
-        ax.axvline(truth, color="black", ls="--")
-        ax.set(xscale="log", xlabel="Границы интервала (логарифмическая шкала)",
-               ylabel="Номер повторения", title=f"n = m = {n}: первые 70 интервалов")
-    paths["intervals"] = save(fig, directory, "03_interval_realizations")
+def plot_interval_examples(lower, upper, good, truth, n, directory):
+    """Рисует готовые интервалы одного объёма, подбирая отдельный масштаб."""
+    setup()
+    colors = ["tab:blue" if covered else "tab:red" for covered in good]
+    positions = range(1, len(lower) + 1)
+    left_edge = min(min(lower), truth)
+    right_edge = max(max(upper), truth)
+    padding = 0.05 * (right_edge - left_edge)
+    if padding == 0:
+        padding = 0.05 * max(abs(truth), 1)
 
-    fig, axes = plt.subplots(1, 2, figsize=(12, 4.5))
-    finite = table.n > 3
-    t = table[finite]
-    axes[0].loglog(t.n, t.mean_length, "o-", label="Средняя длина (эксперимент)")
-    axes[0].loglog(t.n, t.theory_length, "--", label="Точное E[U − L]")
-    axes[0].loglog(table.n, table.median_length, "s-", label="Медианная длина")
-    axes[0].fill_between(table.n, table.length_q10, table.length_q90, alpha=0.15,
-                         label="10–90% квантилей длины")
-    axes[0].set(xlabel="n = m", ylabel="Длина", title="Убывание длины и тяжёлый правый хвост")
-    axes[0].legend(fontsize=9)
-    axes[1].plot(t.n, np.sqrt(t.n)*t.mean_length, "o-", label="√n × средняя длина")
-    axes[1].plot(t.n, np.sqrt(t.n)*t.theory_length, "--", label="√n × E[длина]")
-    axes[1].axhline(4*truth*stats.norm.ppf(1-alpha/2), color="black", ls=":",
-                       label="Предел 4τz ≈ 15.68")
-    size_axis(axes[1], "Длина × √n")
-    axes[1].set_title("Скорость порядка 1/√n")
-    axes[1].legend(fontsize=9)
-    paths["length"] = save(fig, directory, "04_length_and_rate")
+    fig, ax = plt.subplots(figsize=(10, 7))
+    ax.hlines(positions, lower, upper, colors=colors, linewidth=1.6)
+    ax.scatter(lower, positions, c=colors, marker="|", s=25)
+    ax.scatter(upper, positions, c=colors, marker="|", s=25)
+    ax.axvline(truth, color="black", linestyle="--", label=f"Истинное τ = {truth:g}")
+    ax.plot([], [], color="tab:blue", label="Содержит τ")
+    ax.plot([], [], color="tab:red", label="Не содержит τ")
+    ax.set(xlabel="Значение отношения дисперсий", ylabel="Номер повторения",
+           title=f"Первые {len(lower)} доверительных интервалов, n = m = {n}",
+           xlim=(max(0, left_edge - padding), right_edge + padding),
+           ylim=(0, len(lower) + 1))
+    ax.xaxis.set_major_locator(MaxNLocator(nbins=8))
+    formatter = ScalarFormatter(useOffset=False)
+    formatter.set_scientific(False)
+    ax.xaxis.set_major_formatter(formatter)
+    ax.yaxis.set_major_locator(MaxNLocator(integer=True))
+    ax.legend(loc="upper left", bbox_to_anchor=(1.01, 1), fontsize=9)
+    _show(fig, directory, f"task_1_interval_examples_n_{n}")
 
-    fig, axes = plt.subplots(1, 2, figsize=(12, 4.5))
-    for col, label, color in [("low", "Нижняя граница L", "tab:blue"), ("high", "Верхняя граница U", "tab:orange")]:
-        q = np.array([np.quantile(results[n][col], [.1, .5, .9]) for n in table.n])
-        axes[0].plot(table.n, q[:, 1], "o-", color=color, label=label)
-        axes[0].fill_between(table.n, q[:, 0], q[:, 2], alpha=.15, color=color)
-    axes[0].axhline(truth, color="black", ls="--", label="Истинное τ = 2")
-    axes[0].set(yscale="log", title="Медианы и 10–90% квантилей границ")
-    size_axis(axes[0], "Граница интервала (log)")
+
+def plot_bounds_and_length(sizes, mean_lower, mean_upper, mean_length, truth, directory):
+    """Рисует рассчитанные в ноутбуке средние границы и длины."""
+    setup()
+    fig, axes = plt.subplots(1, 2, figsize=(13, 4.5))
+    axes[0].plot(sizes, mean_lower, "o-", label="Средняя нижняя граница")
+    axes[0].plot(sizes, mean_upper, "o-", label="Средняя верхняя граница")
+    axes[0].axhline(truth, color="black", linestyle="--", label=f"Истинное τ = {truth:g}")
+    axes[0].set(ylabel="Среднее значение границы", title="Приближение границ к истинному параметру")
     axes[0].legend()
-    axes[1].plot(t.n, t.mean_lower, "o-", label="Средняя L")
-    axes[1].plot(t.n, t.theory_lower, "--", label="E[L]")
-    axes[1].plot(t.n, t.mean_upper, "o-", label="Средняя U")
-    axes[1].plot(t.n, t.theory_upper, "--", label="E[U]")
-    axes[1].axhline(truth, color="black", ls=":")
-    axes[1].set(yscale="log", title="Ожидаемые границы: конечны только при m > 3")
-    size_axis(axes[1], "Среднее значение границы (log)")
-    axes[1].legend()
-    paths["bounds"] = save(fig, directory, "05_boundaries")
-
-    fig, axes = plt.subplots(1, 3, figsize=(14, 4))
-    probabilities = (np.arange(1, 500) - .5) / 499
-    for ax, n in zip(axes, [5, 30, 1000]):
-        theoretical = stats.f.ppf(probabilities, n-1, n-1)
-        empirical = np.quantile(results[n]["pivot"], probabilities)
-        ax.plot(theoretical, empirical, ".", alpha=.6)
-        ax.plot([theoretical[0], theoretical[-1]], [theoretical[0], theoretical[-1]], "k--")
-        ax.set(xlabel="Квантили F(n−1, n−1)", ylabel="Выборочные квантили пивота", title=f"Q–Q, n = {n}")
-    paths["pivot"] = save(fig, directory, "06_pivot_qq")
-
-    fig, axes = plt.subplots(1, 2, figsize=(12, 4.5))
-    for ax, n in zip(axes, [3, 30]):
-        lengths = results[n]["high"] - results[n]["low"]
-        order = np.sort(lengths)
-        ax.loglog(order, (np.arange(len(order), 0, -1))/len(order), label="Эмпирический хвост")
-        ax.axvline(np.median(lengths), color="tab:orange", ls="--", label="Медиана длины")
-        ax.set(xlabel="Длина l", ylabel="Доля длин ≥ l", title=f"n = m = {n}: " + ("E[длина] = ∞" if n == 3 else "конечное E[длины]"))
-        ax.legend()
-    paths["heavy_tail"] = save(fig, directory, "07_length_tails")
-
-    fig, axes = plt.subplots(1, 2, figsize=(12, 4.5))
-    for n in [30, 100, 1000]:
-        r = results[n]
-        standardized = np.sqrt(n)/2 * np.log(r["ratio"]/truth)
-        axes[0].hist(standardized, bins=80, density=True, histtype="step", label=f"n = {n}")
-        q_low, q_high = stats.f.ppf([alpha/2, 1-alpha/2], n-1, n-1)
-        axes[1].plot(n, np.sqrt(n)/2*np.log(q_high), "bo")
-        axes[1].plot(n, np.sqrt(n)/2*np.log(q_low), "ro")
-    x = np.linspace(-4, 4, 500)
-    axes[0].plot(x, stats.norm.pdf(x), "k--", label="N(0, 1)")
-    axes[0].set(xlabel="(√n / 2) log(R / τ)", ylabel="Плотность", title="Асимптотика логарифма отношения")
-    axes[0].legend()
-    axes[1].axhline(stats.norm.ppf(1-alpha/2), color="blue", ls="--", label="z₀.₉₇₅")
-    axes[1].axhline(stats.norm.ppf(alpha/2), color="red", ls="--", label="z₀.₀₂₅")
-    size_axis(axes[1], "Нормированные логарифмы квантилей F")
-    axes[1].set_title("Почему длина убывает как 1/√n")
-    axes[1].legend()
-    paths["log_ratio"] = save(fig, directory, "08_log_ratio_limit")
-
-    fig, axes = plt.subplots(1, 2, figsize=(12, 4.5))
-    labels = [f"({n}, {m})" for n, m in zip(unbalanced.n, unbalanced.m)]
-    x = np.arange(len(labels))
-    axes[0].errorbar(x, unbalanced.coverage,
-                     yerr=[unbalanced.coverage-unbalanced.mc_low, unbalanced.mc_high-unbalanced.coverage],
-                     fmt="o", capsize=3)
-    axes[0].axhline(1-alpha, color="black", ls="--")
-    axes[0].set(ylabel="Покрытие", title="Неравные выборки: точность покрытия сохраняется")
-    axes[1].bar(x, unbalanced.mean_length, label="Эксперимент", alpha=.7)
-    axes[1].plot(x, unbalanced.theory_length, "ks", label="Точная ожидаемая длина")
-    axes[1].set(ylabel="Средняя длина", yscale="log", title="Малая выборка ограничивает точность")
-    axes[1].legend()
+    axes[1].plot(sizes, mean_length, "o-", color="tab:purple")
+    axes[1].set(ylabel="Средняя длина U − L", title="Сужение доверительного интервала")
     for ax in axes:
-        ax.set_xticks(x, labels, rotation=40)
-        ax.set_xlabel("Пара объёмов (n, m)")
-    paths["unbalanced"] = save(fig, directory, "10_unbalanced_samples")
-    return paths
+        ax.set_xscale("log")
+        ax.set_xlabel("Объём каждой выборки n = m")
+        ax.set_xticks(sizes, labels=sizes, rotation=35)
+        ax.set_ylim(bottom=0)
+    _show(fig, directory, "task_1_bounds_and_length")

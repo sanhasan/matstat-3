@@ -5,7 +5,7 @@ import numpy as np
 from scipy import special, stats
 
 from plots.style import COLORS, LABELS, coverage_errorbar, save, setup, size_axis
-from utils.intervals import laplace_mean_coverage, laplace_median_coverage, laplace_median_exact_halfwidth
+from utils.intervals import laplace_mean_coverage, laplace_median_coverage
 
 
 def laplace_theory_plots(directory="images/laplace_location"):
@@ -58,19 +58,6 @@ def laplace_theory_plots(directory="images/laplace_location"):
     axes[1].legend()
     paths["confidence"] = save(fig, directory, "12_confidence_sensitivity")
 
-    fig, axes = plt.subplots(1, 2, figsize=(12, 4.5))
-    z = stats.norm.ppf(.975)
-    calibrated = np.array([2*laplace_median_exact_halfwidth(int(n)) for n in sizes])
-    axes[0].loglog(sizes, 2*z/np.sqrt(sizes), "o-", color=COLORS["median"], label="Медиана: асимптотический")
-    axes[0].loglog(sizes, 2*z*np.sqrt(2/sizes), "o-", color=COLORS["mean"], label="Среднее: асимптотический")
-    axes[0].loglog(sizes, calibrated, "k--", label="Медиана: точная калибровка 95%")
-    axes[0].set(xlabel="n", ylabel="Длина интервала", title="Поправка на фактическое покрытие")
-    axes[0].legend(fontsize=9)
-    axes[1].plot(sizes, calibrated/(2*z/np.sqrt(sizes)), "o-")
-    axes[1].axhline(1, color="black", ls="--")
-    size_axis(axes[1], "Точная длина / асимптотическая длина")
-    axes[1].set_title("Нужное расширение медианного интервала")
-    paths["calibration"] = save(fig, directory, "13_exact_median_calibration")
     return paths
 
 

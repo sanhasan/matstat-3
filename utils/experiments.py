@@ -6,7 +6,6 @@ from scipy import stats
 
 from utils.intervals import (
     laplace_intervals, laplace_mean_coverage, laplace_median_coverage,
-    ratio_expected_bounds, ratio_from_samples, variance_ratio_interval,
 )
 
 
@@ -33,45 +32,6 @@ def summarize_intervals(low, high, truth):
         "mean_length": length.mean(), "median_length": np.median(length),
         "length_q10": np.quantile(length, 0.1), "length_q90": np.quantile(length, 0.9),
     }
-
-
-def run_ratio_experiment(sizes, repeats=20000, seed=24422442, alpha=0.05):
-    """Основной эксперимент: реальные нормальные выборки, n=m."""
-    rng = np.random.default_rng(seed)
-    results, rows = {}, []
-    for n in map(int, sizes):
-        # Не более примерно 16 MiB на одну из двух матриц наблюдений.
-        batch = max(1, min(512, 2_000_000 // n))
-        lows, highs, ratios = [], [], []
-        for start in range(0, repeats, batch):
-            count = min(batch, repeats - start)
-            x = rng.normal(0, np.sqrt(2), size=(count, n))
-            y = rng.normal(0, 1, size=(count, n))
-            low, high = ratio_from_samples(x, y, alpha)
-            lows.append(low)
-            highs.append(high)
-            ratios.append(x.var(axis=-1, ddof=1) / y.var(axis=-1, ddof=1))
-        low, high, ratio = map(np.concatenate, (lows, highs, ratios))
-        results[n] = {"low": low, "high": high, "ratio": ratio, "pivot": ratio / 2}
-        expected_low, expected_high, expected_length = ratio_expected_bounds(n, n, alpha=alpha)
-        rows.append({"n": n, "m": n, **summarize_intervals(low, high, 2),
-                     "theory_lower": expected_low, "theory_upper": expected_high,
-                     "theory_length": expected_length})
-    return {"results": results, "table": pd.DataFrame(rows), "alpha": alpha,
-            "repeats": repeats, "truth": 2.0}
-
-
-def run_unbalanced_experiment(pairs, repeats=40000, seed=24422443, alpha=0.05):
-    """Дополнение: точная генерация достаточных статистик через хи-квадрат."""
-    rng = np.random.default_rng(seed)
-    rows = []
-    for n, m in pairs:
-        var_x = 2 * rng.chisquare(n - 1, repeats) / (n - 1)
-        var_y = rng.chisquare(m - 1, repeats) / (m - 1)
-        low, high = variance_ratio_interval(var_x, var_y, n, m, alpha)
-        rows.append({"n": n, "m": m, **summarize_intervals(low, high, 2),
-                     "theory_length": ratio_expected_bounds(n, m, alpha=alpha)[2]})
-    return pd.DataFrame(rows)
 
 
 def run_laplace_experiment(sizes, repeats=20000, seed=24422444, alpha=0.05, mu=2.0):

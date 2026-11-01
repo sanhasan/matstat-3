@@ -1,4 +1,4 @@
-"""Точные F-интервалы и асимптотические интервалы для модели Лапласа."""
+"""Асимптотические интервалы и точное покрытие для модели Лапласа."""
 
 import numpy as np
 from scipy import integrate, stats
@@ -7,41 +7,6 @@ from scipy import integrate, stats
 def validate_alpha(alpha):
     if not 0 < alpha < 1:
         raise ValueError("Требуется 0 < alpha < 1.")
-
-
-def variance_ratio_interval(var_x, var_y, n, m, alpha=0.05):
-    """Входные дисперсии несмещённые (ddof=1), последние оси — повторения."""
-    validate_alpha(alpha)
-    if n < 2 or m < 2:
-        raise ValueError("Для оценки дисперсии нужны n, m >= 2.")
-    var_x, var_y = np.asarray(var_x), np.asarray(var_y)
-    if np.any(var_x < 0) or np.any(var_y <= 0):
-        raise ValueError("Нужны var_x >= 0 и var_y > 0.")
-    ratio = var_x / var_y
-    q_low, q_high = stats.f.ppf([alpha / 2, 1 - alpha / 2], n - 1, m - 1)
-    return ratio / q_high, ratio / q_low
-
-
-def ratio_from_samples(x, y, alpha=0.05):
-    """Каждая строка x и y — отдельная независимая выборка."""
-    x, y = np.asarray(x), np.asarray(y)
-    return variance_ratio_interval(
-        x.var(axis=-1, ddof=1), y.var(axis=-1, ddof=1),
-        x.shape[-1], y.shape[-1], alpha,
-    )
-
-
-def ratio_expected_bounds(n, m, tau=2.0, alpha=0.05):
-    """E[L], E[U], E[U-L]; при m <= 3 ожидания бесконечны."""
-    validate_alpha(alpha)
-    if n < 2 or m < 2 or tau <= 0:
-        raise ValueError("Нужны n, m >= 2 и tau > 0.")
-    if m <= 3:
-        return np.inf, np.inf, np.inf
-    q_low, q_high = stats.f.ppf([alpha / 2, 1 - alpha / 2], n - 1, m - 1)
-    mean_ratio = tau * (m - 1) / (m - 3)
-    low, high = mean_ratio / q_high, mean_ratio / q_low
-    return low, high, high - low
 
 
 def laplace_intervals(sample, alpha=0.05, scale=1.0):
@@ -69,16 +34,6 @@ def laplace_median_coverage(n, alpha=0.05):
     z = stats.norm.ppf(1 - alpha / 2)
     p = 0.5 * np.exp(-z / np.sqrt(n))
     return 1 - 2 * stats.binom.sf(n // 2, n, p)
-
-
-def laplace_median_exact_halfwidth(n, alpha=0.05, scale=1.0):
-    """Дополнительный точный интервал median ± h через Beta(k, k), нечётное n."""
-    validate_alpha(alpha)
-    if n < 1 or n % 2 != 1 or scale <= 0:
-        raise ValueError("Нужны положительный масштаб и нечётное n >= 1.")
-    k = (n+1)//2
-    p = stats.beta.ppf(alpha/2, k, k)
-    return -scale * np.log(2*p)
 
 
 def laplace_mean_coverage(n, alpha=0.05):
