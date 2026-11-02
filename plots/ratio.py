@@ -1,5 +1,3 @@
-"""Оформление и вывод графиков по готовым данным из первого ноутбука."""
-
 from plots.style import save, setup
 
 import matplotlib.pyplot as plt
@@ -14,7 +12,6 @@ def _show(fig, directory, name):
 
 
 def plot_fisher_quantiles(distribution, q_low, q_high, df, alpha, directory):
-    """Создаёт сетки для рисунка и отмечает вычисленные в ноутбуке квантили."""
     setup()
     right_edge = distribution.ppf(1 - alpha / 10)
     grid = np.linspace(0.001, right_edge, 1200)
@@ -37,7 +34,6 @@ def plot_fisher_quantiles(distribution, q_low, q_high, df, alpha, directory):
 
 
 def plot_coverage(sizes, coverage, level, truth, directory):
-    """Рисует готовые доли покрытия и теоретический доверительный уровень."""
     setup()
     half_range = max(0.005, 1.2 * max(abs(value - level) for value in coverage))
     fig, ax = plt.subplots(figsize=(10, 4.5))
@@ -53,7 +49,6 @@ def plot_coverage(sizes, coverage, level, truth, directory):
 
 
 def plot_interval_examples(lower, upper, good, truth, n, directory):
-    """Рисует готовые интервалы одного объёма, подбирая отдельный масштаб."""
     setup()
     colors = ["tab:blue" if covered else "tab:red" for covered in good]
     positions = range(1, len(lower) + 1)
@@ -84,7 +79,6 @@ def plot_interval_examples(lower, upper, good, truth, n, directory):
 
 
 def plot_bounds_and_length(sizes, mean_lower, mean_upper, mean_length, truth, directory):
-    """Рисует рассчитанные в ноутбуке средние границы и длины."""
     setup()
     fig, axes = plt.subplots(1, 2, figsize=(13, 4.5))
     axes[0].plot(sizes, mean_lower, "o-", label="Средняя нижняя граница")

@@ -1,5 +1,3 @@
-"""Сравнение асимптотических интервалов для сдвига распределения Лапласа."""
-
 import matplotlib.pyplot as plt
 import numpy as np
 from scipy import special, stats
@@ -9,12 +7,6 @@ from utils.intervals import laplace_mean_coverage, laplace_median_coverage
 
 
 def _laplace_standardized_mean_pdf(t, n):
-    """Точная плотность sqrt(n) * (mean - mu) / (sqrt(2) * b).
-
-    Сумма n стандартных лапласовских величин имеет характеристическую
-    функцию (1 + s**2)**(-n). Её плотность выражается через K-функцию
-    Бесселя; kve позволяет устойчиво вычислять её при больших n.
-    """
     t = np.asarray(t, dtype=float)
     scaled_abs = np.sqrt(2 * n) * np.abs(t)
     order = n - .5
@@ -65,7 +57,6 @@ def laplace_theory_plots(directory="images/laplace_location"):
 
     fig, axes = plt.subplots(1, 3, figsize=(15, 4.5))
     for ax, n in zip(axes, [3, 11, 101]):
-        # Точная плотность нечётной порядковой статистики с масштабированием √n.
         t = np.linspace(-4, 4, 600)
         observations = 2 + t/np.sqrt(n)
         cdf = stats.laplace.cdf(observations, loc=2)

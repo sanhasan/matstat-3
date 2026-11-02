@@ -1,5 +1,3 @@
-"""Воспроизводимое моделирование с ограниченным расходом памяти."""
-
 import numpy as np
 import pandas as pd
 from scipy import stats
@@ -10,7 +8,6 @@ from utils.intervals import (
 
 
 def wilson_interval(successes, repeats, level=0.95):
-    """Интервал Уилсона для вероятности покрытия в эксперименте Монте-Карло."""
     p = np.asarray(successes) / repeats
     z = stats.norm.ppf((1 + level) / 2)
     denom = 1 + z**2 / repeats
@@ -35,7 +32,6 @@ def summarize_intervals(low, high, truth):
 
 
 def run_laplace_experiment(sizes, repeats=20000, seed=24422444, alpha=0.05, mu=2.0):
-    """Оба метода на одних и тех же выборках: сравнение парное."""
     rng = np.random.default_rng(seed)
     results, rows = {}, []
     for n in map(int, sizes):
@@ -68,7 +64,6 @@ def run_laplace_experiment(sizes, repeats=20000, seed=24422444, alpha=0.05, mu=2
 
 
 def paired_coverage_difference(experiment):
-    """Разность покрытий median - mean и её парная стандартная ошибка."""
     rows = []
     truth = experiment["truth"]
     for n, current in experiment["results"].items():

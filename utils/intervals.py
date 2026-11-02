@@ -1,5 +1,3 @@
-"""Асимптотические интервалы и точное покрытие для модели Лапласа."""
-
 import numpy as np
 from scipy import integrate, stats
 
@@ -10,7 +8,6 @@ def validate_alpha(alpha):
 
 
 def laplace_intervals(sample, alpha=0.05, scale=1.0):
-    """Известный масштаб b: mean ± z*b*sqrt(2/n), median ± z*b/sqrt(n)."""
     validate_alpha(alpha)
     if scale <= 0:
         raise ValueError("Масштаб должен быть положительным.")
@@ -27,7 +24,6 @@ def laplace_intervals(sample, alpha=0.05, scale=1.0):
 
 
 def laplace_median_coverage(n, alpha=0.05):
-    """Точное покрытие асимптотического интервала при нечётном n, не симуляция."""
     validate_alpha(alpha)
     if n < 1 or n % 2 != 1:
         raise ValueError("Формула порядковой статистики требует нечётного n.")
@@ -37,11 +33,6 @@ def laplace_median_coverage(n, alpha=0.05):
 
 
 def laplace_mean_coverage(n, alpha=0.05):
-    """Точное конечновыборочное покрытие через смесь нормального и Gamma.
-
-    S_n | G ~ N(0, 2G), G ~ Gamma(n, 1). Интегрирование после
-    стандартизации G; суммарная отброшенная масса не больше 2e-12.
-    """
     validate_alpha(alpha)
     if n < 1:
         raise ValueError("Нужно n >= 1.")

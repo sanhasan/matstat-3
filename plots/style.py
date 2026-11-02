@@ -1,5 +1,3 @@
-"""Единое оформление и сохранение рисунков, как в matstat-2."""
-
 from pathlib import Path
 
 import matplotlib
