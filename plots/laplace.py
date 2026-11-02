@@ -8,6 +8,34 @@ from plots.style import COLORS, LABELS, coverage_errorbar, save, setup, size_axi
 from utils.intervals import laplace_mean_coverage, laplace_median_coverage
 
 
+def _laplace_standardized_mean_pdf(t, n):
+    """Точная плотность sqrt(n) * (mean - mu) / (sqrt(2) * b).
+
+    Сумма n стандартных лапласовских величин имеет характеристическую
+    функцию (1 + s**2)**(-n). Её плотность выражается через K-функцию
+    Бесселя; kve позволяет устойчиво вычислять её при больших n.
+    """
+    t = np.asarray(t, dtype=float)
+    scaled_abs = np.sqrt(2 * n) * np.abs(t)
+    order = n - .5
+    density = np.empty_like(scaled_abs)
+    at_zero = scaled_abs == 0
+    density[at_zero] = np.sqrt(2 * n) * np.exp(
+        special.gammaln(n - .5) - np.log(2) - .5 * np.log(np.pi)
+        - special.gammaln(n)
+    )
+    away_from_zero = scaled_abs[~at_zero]
+    density[~at_zero] = np.sqrt(2 * n) * np.exp(
+        order * np.log(away_from_zero)
+        + np.log(special.kve(order, away_from_zero))
+        - away_from_zero
+        - order * np.log(2)
+        - .5 * np.log(np.pi)
+        - special.gammaln(n)
+    )
+    return density
+
+
 def laplace_theory_plots(directory="images/laplace_location"):
     setup()
     paths = {}
@@ -24,7 +52,18 @@ def laplace_theory_plots(directory="images/laplace_location"):
         ax.legend()
     paths["model"] = save(fig, directory, "01_laplace_model")
 
-    fig, axes = plt.subplots(1, 3, figsize=(14, 4))
+    fig, axes = plt.subplots(1, 3, figsize=(15, 4.5))
+    t = np.linspace(-4, 4, 600)
+    for ax, n in zip(axes, [3, 11, 101]):
+        ax.plot(t, _laplace_standardized_mean_pdf(t, n),
+                color=COLORS["mean"], label="Точная плотность")
+        ax.plot(t, stats.norm.pdf(t), "k--", label="Предел N(0, 1)")
+        ax.set(xlabel="√n (среднее − μ) / (√2 b)", ylabel="Плотность",
+               title=f"n = {n}", xlim=(-4, 4))
+        ax.legend(fontsize=9)
+    paths["mean_limit"] = save(fig, directory, "02_exact_mean_density")
+
+    fig, axes = plt.subplots(1, 3, figsize=(15, 4.5))
     for ax, n in zip(axes, [3, 11, 101]):
         # Точная плотность нечётной порядковой статистики с масштабированием √n.
         t = np.linspace(-4, 4, 600)
@@ -36,9 +75,10 @@ def laplace_theory_plots(directory="images/laplace_location"):
                        + stats.laplace.logpdf(observations, loc=2) - .5*np.log(n))
         ax.plot(t, np.exp(log_density), color=COLORS["median"], label="Точная плотность")
         ax.plot(t, stats.norm.pdf(t), "k--", label="Предел N(0, 1)")
-        ax.set(xlabel="√n (медиана − μ)", ylabel="Плотность", title=f"Медиана, n = {n}")
+        ax.set(xlabel="√n (медиана − μ) / b", ylabel="Плотность",
+               title=f"n = {n}", xlim=(-4, 4))
         ax.legend(fontsize=9)
-    paths["median_limit"] = save(fig, directory, "02_exact_median_density")
+    paths["median_limit"] = save(fig, directory, "03_exact_median_density")
 
     sizes = np.array([3, 5, 11, 21, 51, 101, 301, 1001])
     fig, axes = plt.subplots(1, 2, figsize=(12, 4.5))
